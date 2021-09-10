@@ -8,7 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Driver\src\Driver.csproj" />
+    <ProjectReference Include="..\..\..\ydb-dotnet-sdk\src\Auth\src\Auth.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Yandex.Cloud.SDK" Version="1.0.6" />
   </ItemGroup>
 
 </Project>
