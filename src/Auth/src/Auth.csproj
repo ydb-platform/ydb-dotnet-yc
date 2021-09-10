@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <AssemblyName>Ydb.Sdk.Yc.Auth</AssemblyName>
+    <RootNamespace>Ydb.Sdk.Yc</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Driver\src\Driver.csproj" />
+  </ItemGroup>
+
+</Project>
