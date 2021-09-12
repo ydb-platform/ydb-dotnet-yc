@@ -18,11 +18,22 @@ namespace Ydb.Sdk.Yc
 {
     public class ServiceAccountProvider : ICredentialsProvider
     {
+        private static readonly TimeSpan JwtTtl = TimeSpan.FromHours(1);
+        private static readonly TimeSpan IamRefreshInterval = TimeSpan.FromMinutes(5);
+
+        private static readonly TimeSpan IamRefreshGap = TimeSpan.FromMinutes(1);
+
+        private static readonly int MaxRetries = 5;
+
+        private readonly object _lock = new object();
+
         private readonly ILoggerFactory _loggerFactory;
         private readonly ILogger _logger;
         private readonly string _serviceAccountId;
         private readonly RsaSecurityKey _privateKey;
-        private IamTokenData? _iamToken = null;
+
+        private volatile IamTokenData? _iamToken = null;
+        private volatile Task? _refreshTask = null;
 
         public ServiceAccountProvider(string saFilePath, ILoggerFactory? loggerFactory = null)
         {
@@ -50,6 +61,64 @@ namespace Ydb.Sdk.Yc
 
         public async Task Initialize()
         {
+            _iamToken = await ReceiveIamToken();
+        }
+
+        public string? GetAuthInfo()
+        {
+            var iamToken = _iamToken;
+
+            if (iamToken is null)
+            {
+                lock (_lock) {
+                    if (_iamToken is null) {
+                        _logger.LogWarning("Blocking for initial IAM token acquirement" +
+                            ", please use explicit Initialize async method.");
+
+                        _iamToken = ReceiveIamToken().Result;
+                    }
+
+                    return _iamToken.Token;
+                }
+            }
+
+            if (iamToken.IsExpired()) {
+                lock (_lock) {
+                    if (_iamToken!.IsExpired()) {
+                        _logger.LogWarning("Blocking on expired IAM token.");
+
+                        _iamToken = ReceiveIamToken().Result;
+                    }
+
+                    return _iamToken.Token;
+                }
+            }
+
+            if (iamToken.IsExpiring() && _refreshTask is null) {
+                lock (_lock) {
+                    if (_iamToken!.IsExpiring() && _refreshTask is null) {
+                        _logger.LogInformation("Refreshing IAM token.");
+
+                        _refreshTask = Task.Run(RefreshIamToken);
+                    }
+                }
+            }
+
+            return _iamToken!.Token;
+        }
+
+        private async Task RefreshIamToken()
+        {
+            var iamToken = await ReceiveIamToken();
+
+            lock (_lock) {
+                _iamToken = iamToken;
+                _refreshTask = null;
+            }
+        }
+
+        private async Task<IamTokenData> ReceiveIamToken()
+        {
             var services = new Services(new Yandex.Cloud.Sdk(new EmptyYcCredentialsProvider()));
 
             var request = new CreateIamTokenRequest
@@ -57,27 +126,33 @@ namespace Ydb.Sdk.Yc
                 Jwt = MakeJwt()
             };
 
-            var response = await services.Iam.IamTokenService.CreateAsync(request);
+            int retryAttempt = 0;
+            while (true) {
+                try
+                {
+                    _logger.LogTrace($"Attempting to receive IAM token, attempt: {retryAttempt}");
 
-            _iamToken = new IamTokenData(
-                token: response.IamToken,
-                expiresAt: response.ExpiresAt.ToDateTime()
-            );
+                    var response = await services.Iam.IamTokenService.CreateAsync(request);
 
-            _logger.LogDebug($"Received initial IAM token, expires at: {_iamToken.ExpiresAt}");
-        }
+                    var iamToken = new IamTokenData(
+                        token: response.IamToken,
+                        expiresAt: response.ExpiresAt.ToDateTime()
+                    );
 
-        public string? GetAuthInfo()
-        {
-            if (_iamToken is null)
-            {
-                _logger.LogWarning("Blocking for initial token acquirement" +
-                    ", please use explicit Initialize async method.");
+                    _logger.LogDebug($"Received IAM token, expires at: {iamToken.ExpiresAt}");
 
-                Initialize().Wait();
+                    return iamToken;
+                }
+                catch (Grpc.Core.RpcException)
+                {
+                    if (retryAttempt >= MaxRetries) {
+                        throw;
+                    }
+
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+                    ++retryAttempt;
+                }
             }
-
-            return _iamToken!.Token;
         }
 
         private string MakeJwt()
@@ -90,7 +165,7 @@ namespace Ydb.Sdk.Yc
                     Issuer = _serviceAccountId,
                     Audience = YcAuth.DefaultAudience,
                     IssuedAt = now,
-                    Expires = now.Add(YcAuth.DefaultTokenTtl),
+                    Expires = now.Add(JwtTtl),
                     SigningCredentials = new SigningCredentials(_privateKey, SecurityAlgorithms.RsaSsaPssSha256),
                 };
 
@@ -118,12 +193,37 @@ namespace Ydb.Sdk.Yc
         {
             public IamTokenData(string token, DateTime expiresAt)
             {
+                var now = DateTime.UtcNow;
+
                 Token = token;
                 ExpiresAt = expiresAt;
+                ExpiresAt = now + TimeSpan.FromSeconds(120);
+
+                if (expiresAt <= now) {
+                    RefreshAt = expiresAt;
+                } else
+                {
+                    var refreshSeconds = new Random().Next((int)IamRefreshInterval.TotalSeconds);
+                    RefreshAt = expiresAt - IamRefreshGap - TimeSpan.FromSeconds(refreshSeconds);
+
+                    if (RefreshAt < now) {
+                        RefreshAt = expiresAt;
+                    }
+                }
             }
 
             public string Token { get; }
             public DateTime ExpiresAt { get; }
+
+            public DateTime RefreshAt { get; }
+
+            public bool IsExpired() {
+                return DateTime.UtcNow >= ExpiresAt;
+            }
+
+            public bool IsExpiring() {
+                return DateTime.UtcNow >= RefreshAt;
+            }
         }
     }
 }
