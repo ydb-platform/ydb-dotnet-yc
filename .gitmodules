@@ -1,3 +1,0 @@
-[submodule "ydb-dotnet-sdk"]
-	path = ydb-dotnet-sdk
-	url = https://github.com/ydb-platform/ydb-dotnet-sdk.git
