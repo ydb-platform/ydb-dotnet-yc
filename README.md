@@ -4,6 +4,12 @@
 
 [![Nuget](https://img.shields.io/nuget/v/Ydb.Sdk.Yc.Auth)](https://www.nuget.org/packages/Ydb.Sdk.Yc.Auth/)
 
+### Installation
+
+```
+dotnet add package Ydb.Sdk.Yc.Auth
+```
+
 Supported Yandex.Cloud authentication methods:
 * `Ydb.Sdk.Yc.ServiceAccountProvider`. Service account authentication, sample usage:
 
