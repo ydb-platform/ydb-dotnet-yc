@@ -12,8 +12,9 @@
     <RepositoryUrl>https://github.com/ydb-platform/ydb-dotnet-yc</RepositoryUrl>
     <PackageProjectUrl>https://github.com/ydb-platform/ydb-dotnet-yc</PackageProjectUrl>
     <PackageId>Ydb.Sdk.Yc.Auth</PackageId>
-    <Description>Yandex Cloud authentication library for YDB.</Description>
+    <Description>Yandex.Cloud authentication libraries for YDB.</Description>
     <Company>YANDEX LLC</Company>
+    <Authors>YDB</Authors>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 
@@ -21,7 +22,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="6.12.2" />
     <PackageReference Include="Portable.BouncyCastle" Version="1.8.10" />
-    <PackageReference Include="Ydb.Sdk" Version="0.0.1" />
+    <PackageReference Include="Ydb.Sdk" Version="0.0.3" />
     <PackageReference Include="Yandex.Cloud.SDK" Version="1.0.6" />
   </ItemGroup>
 
