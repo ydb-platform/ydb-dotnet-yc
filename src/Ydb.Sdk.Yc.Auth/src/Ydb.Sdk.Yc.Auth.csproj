@@ -19,6 +19,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="../../../certs/yc_default.pem" LogicalName="yc_default.pem"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="5.0.10" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="6.12.2" />
     <PackageReference Include="Portable.BouncyCastle" Version="1.8.10" />
