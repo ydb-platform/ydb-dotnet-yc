@@ -1,6 +1,6 @@
 # Yandex.Cloud libraries for YDB
 
-## Authentication
+## Auth Library
 
 [![Nuget](https://img.shields.io/nuget/v/Ydb.Sdk.Yc.Auth)](https://www.nuget.org/packages/Ydb.Sdk.Yc.Auth/)
 
@@ -9,6 +9,7 @@
 ```
 dotnet add package Ydb.Sdk.Yc.Auth
 ```
+### Authentication
 
 Supported Yandex.Cloud authentication methods:
 * `Ydb.Sdk.Yc.ServiceAccountProvider`. Service account authentication, sample usage:
@@ -34,3 +35,20 @@ using var driver = new Driver(
 
 await driver.Initialize(); // Make sure to await driver initialization
 ```
+
+### Certificates
+
+Library includes default Yandex Cloud server certificate, which is required for connectivity with dedicated YDB databases:
+
+```c#
+var cert = Ydb.Sdk.Yc.YcCerts.GetDefaultServerCertificate();
+
+var config = new DriverConfig(
+    endpoint: endpoint, // Database endpoint, "grpcs://host:port"
+    database: database, // Full database path
+    credentials: credentials, // Credentials provider, see above
+    customServerCertificate: cert // Required for dedicated YDB dababases
+);
+
+```
+
