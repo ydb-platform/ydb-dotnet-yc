@@ -36,6 +36,21 @@ using var driver = new Driver(
 await driver.Initialize(); // Make sure to await driver initialization
 ```
 
+* `Ydb.Sdk.Yc.MetadataProvider`. Metadata service authentication, works inside Yandex Cloud VMs and Cloud Functions. Sample usage:
+
+```c#
+var metadataProvider = new MetadataProvider(loggerFactory: loggerFactory);
+
+// Await initial IAM token.
+await metadataProvider.Initialize();
+
+var config = new DriverConfig(
+    endpoint: endpoint, // Database endpoint, "grpcs://host:port"
+    database: database, // Full database path
+    credentials: metadataProvider
+);
+```
+
 ### Certificates
 
 Library includes default Yandex Cloud server certificate, which is required for connectivity with dedicated YDB databases:
