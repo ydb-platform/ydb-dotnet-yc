@@ -19,27 +19,48 @@ namespace Ydb.Sdk.Yc
     public class ServiceAccountProvider : IamProviderBase
     {
         private static readonly TimeSpan JwtTtl = TimeSpan.FromHours(1);
-        private readonly ILogger _logger;
-        private readonly string _serviceAccountId;
-        private readonly RsaSecurityKey _privateKey;
+        private ILogger _logger;
+        private string _serviceAccountId;
+        private RsaSecurityKey _privateKey;
 
         public ServiceAccountProvider(string saFilePath, ILoggerFactory? loggerFactory = null)
             : base(loggerFactory)
         {
-            loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
-            _logger = loggerFactory.CreateLogger<ServiceAccountProvider>();
-
             var saInfo = JsonSerializer.Deserialize<SaJsonInfo>(File.ReadAllText(saFilePath));
             if (saInfo == null) {
                 throw new InvalidCredentialsException("Failed to parse service account file.");
             }
+            SetupSaProvider(saInfo);
+        }
+
+        public ServiceAccountProvider(
+            string keyId,
+            string serviceAccountId,
+            string privateKey, ILoggerFactory? loggerFactory = null)
+            : base(loggerFactory)
+        {
+            var saInfo = new SaJsonInfo
+            {
+                id = keyId,
+                private_key = privateKey,
+                service_account_id = serviceAccountId
+            };
+
+            SetupSaProvider(saInfo);
+        }
+
+        private void SetupSaProvider(SaJsonInfo saInfo, ILoggerFactory? loggerFactory = null)
+        {
+            loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+            _logger = loggerFactory.CreateLogger<ServiceAccountProvider>();
             saInfo.EnsureValid();
 
             _logger.LogDebug("Successfully parsed service account file.");
 
             _serviceAccountId = saInfo.service_account_id;
 
-            using (var reader = new StringReader(saInfo.private_key)) {
+            using (var reader = new StringReader(saInfo.private_key))
+            {
                 var parameters = new PemReader(reader).ReadObject() as RsaPrivateCrtKeyParameters;
                 if (parameters == null) {
                     throw new InvalidCredentialsException("Failed to parse service account key.");
