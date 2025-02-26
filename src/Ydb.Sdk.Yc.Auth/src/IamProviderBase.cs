@@ -4,150 +4,149 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Ydb.Sdk.Auth;
 
-namespace Ydb.Sdk.Yc
+namespace Ydb.Sdk.Yc;
+
+public abstract class IamProviderBase : ICredentialsProvider
 {
-    public abstract class IamProviderBase : ICredentialsProvider
+    private static readonly TimeSpan IamRefreshInterval = TimeSpan.FromMinutes(5);
+
+    private static readonly TimeSpan IamRefreshGap = TimeSpan.FromMinutes(1);
+
+    private static readonly int IamMaxRetries = 5;
+
+    private readonly object _lock = new object();
+
+    private readonly ILogger _logger;
+
+    private volatile IamTokenData? _iamToken = null;
+    private volatile Task? _refreshTask = null;
+
+    protected IamProviderBase(ILoggerFactory? loggerFactory) {
+        loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = loggerFactory.CreateLogger<IamProviderBase>();
+    }
+
+    public async Task Initialize()
     {
-        private static readonly TimeSpan IamRefreshInterval = TimeSpan.FromMinutes(5);
+        _iamToken = await ReceiveIamToken();
+    }
 
-        private static readonly TimeSpan IamRefreshGap = TimeSpan.FromMinutes(1);
+    public string? GetAuthInfo()
+    {
+        var iamToken = _iamToken;
 
-        private static readonly int IamMaxRetries = 5;
-
-        private readonly object _lock = new object();
-
-        private readonly ILogger _logger;
-
-        private volatile IamTokenData? _iamToken = null;
-        private volatile Task? _refreshTask = null;
-
-        protected IamProviderBase(ILoggerFactory? loggerFactory) {
-            loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
-            _logger = loggerFactory.CreateLogger<IamProviderBase>();
-        }
-
-        public async Task Initialize()
+        if (iamToken is null)
         {
-            _iamToken = await ReceiveIamToken();
-        }
-
-        public string? GetAuthInfo()
-        {
-            var iamToken = _iamToken;
-
-            if (iamToken is null)
-            {
-                lock (_lock) {
-                    if (_iamToken is null) {
-                        _logger.LogWarning("Blocking for initial IAM token acquirement" +
-                            ", please use explicit Initialize async method.");
-
-                        _iamToken = ReceiveIamToken().Result;
-                    }
-
-                    return _iamToken.Token;
-                }
-            }
-
-            if (iamToken.IsExpired()) {
-                lock (_lock) {
-                    if (_iamToken!.IsExpired()) {
-                        _logger.LogWarning("Blocking on expired IAM token.");
-
-                        _iamToken = ReceiveIamToken().Result;
-                    }
-
-                    return _iamToken.Token;
-                }
-            }
-
-            if (iamToken.IsExpiring() && _refreshTask is null) {
-                lock (_lock) {
-                    if (_iamToken!.IsExpiring() && _refreshTask is null) {
-                        _logger.LogInformation("Refreshing IAM token.");
-
-                        _refreshTask = Task.Run(RefreshIamToken);
-                    }
-                }
-            }
-
-            return _iamToken!.Token;
-        }
-
-        private async Task RefreshIamToken()
-        {
-            var iamToken = await ReceiveIamToken();
-
             lock (_lock) {
-                _iamToken = iamToken;
-                _refreshTask = null;
+                if (_iamToken is null) {
+                    _logger.LogWarning("Blocking for initial IAM token acquirement" +
+                                       ", please use explicit Initialize async method.");
+
+                    _iamToken = ReceiveIamToken().Result;
+                }
+
+                return _iamToken.Token;
             }
         }
 
-        protected async Task<IamTokenData> ReceiveIamToken()
-        {
-            int retryAttempt = 0;
-            while (true) {
-                try
-                {
-                    _logger.LogTrace($"Attempting to receive IAM token, attempt: {retryAttempt}");
+        if (iamToken.IsExpired()) {
+            lock (_lock) {
+                if (_iamToken!.IsExpired()) {
+                    _logger.LogWarning("Blocking on expired IAM token.");
 
-                    var iamToken = await FetchToken();
-
-                    _logger.LogInformation($"Received IAM token, expires at: {iamToken.ExpiresAt}");
-
-                    return iamToken;
+                    _iamToken = ReceiveIamToken().Result;
                 }
-                catch (Exception e)
-                {
-                    _logger.LogDebug($"Failed to fetch IAM token, {e}");
 
-                    if (retryAttempt >= IamMaxRetries) {
-                        throw;
-                    }
+                return _iamToken.Token;
+            }
+        }
 
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
-                    ++retryAttempt;
+        if (iamToken.IsExpiring() && _refreshTask is null) {
+            lock (_lock) {
+                if (_iamToken!.IsExpiring() && _refreshTask is null) {
+                    _logger.LogInformation("Refreshing IAM token.");
+
+                    _refreshTask = Task.Run(RefreshIamToken);
                 }
             }
         }
 
-        protected abstract Task<IamTokenData> FetchToken();
+        return _iamToken!.Token;
+    }
 
-        protected class IamTokenData
-        {
-            public IamTokenData(string token, DateTime expiresAt)
+    private async Task RefreshIamToken()
+    {
+        var iamToken = await ReceiveIamToken();
+
+        lock (_lock) {
+            _iamToken = iamToken;
+            _refreshTask = null;
+        }
+    }
+
+    protected async Task<IamTokenData> ReceiveIamToken()
+    {
+        int retryAttempt = 0;
+        while (true) {
+            try
             {
-                var now = DateTime.UtcNow;
+                _logger.LogTrace($"Attempting to receive IAM token, attempt: {retryAttempt}");
 
-                Token = token;
-                ExpiresAt = expiresAt;
+                var iamToken = await FetchToken();
 
-                if (expiresAt <= now) {
+                _logger.LogInformation($"Received IAM token, expires at: {iamToken.ExpiresAt}");
+
+                return iamToken;
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug($"Failed to fetch IAM token, {e}");
+
+                if (retryAttempt >= IamMaxRetries) {
+                    throw;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+                ++retryAttempt;
+            }
+        }
+    }
+
+    protected abstract Task<IamTokenData> FetchToken();
+
+    protected class IamTokenData
+    {
+        public IamTokenData(string token, DateTime expiresAt)
+        {
+            var now = DateTime.UtcNow;
+
+            Token = token;
+            ExpiresAt = expiresAt;
+
+            if (expiresAt <= now) {
+                RefreshAt = expiresAt;
+            } else
+            {
+                var refreshSeconds = new Random().Next((int)IamRefreshInterval.TotalSeconds);
+                RefreshAt = expiresAt - IamRefreshGap - TimeSpan.FromSeconds(refreshSeconds);
+
+                if (RefreshAt < now) {
                     RefreshAt = expiresAt;
-                } else
-                {
-                    var refreshSeconds = new Random().Next((int)IamRefreshInterval.TotalSeconds);
-                    RefreshAt = expiresAt - IamRefreshGap - TimeSpan.FromSeconds(refreshSeconds);
-
-                    if (RefreshAt < now) {
-                        RefreshAt = expiresAt;
-                    }
                 }
             }
+        }
 
-            public string Token { get; }
-            public DateTime ExpiresAt { get; }
+        public string Token { get; }
+        public DateTime ExpiresAt { get; }
 
-            public DateTime RefreshAt { get; }
+        public DateTime RefreshAt { get; }
 
-            public bool IsExpired() {
-                return DateTime.UtcNow >= ExpiresAt;
-            }
+        public bool IsExpired() {
+            return DateTime.UtcNow >= ExpiresAt;
+        }
 
-            public bool IsExpiring() {
-                return DateTime.UtcNow >= RefreshAt;
-            }
+        public bool IsExpiring() {
+            return DateTime.UtcNow >= RefreshAt;
         }
     }
 }
