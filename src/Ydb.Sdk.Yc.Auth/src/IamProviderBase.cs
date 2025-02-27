@@ -12,17 +12,18 @@ public abstract class IamProviderBase : ICredentialsProvider
 
     private static readonly TimeSpan IamRefreshGap = TimeSpan.FromMinutes(1);
 
-    private static readonly int IamMaxRetries = 5;
+    private const int IamMaxRetries = 5;
 
-    private readonly object _lock = new object();
+    private readonly object _lock = new();
 
     private readonly ILogger _logger;
 
-    private volatile IamTokenData? _iamToken = null;
-    private volatile Task? _refreshTask = null;
+    private volatile IamTokenData? _iamToken;
+    private volatile Task? _refreshTask;
 
-    protected IamProviderBase(ILoggerFactory? loggerFactory) {
-        loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+    protected IamProviderBase(ILoggerFactory? loggerFactory)
+    {
+        loggerFactory ??= NullLoggerFactory.Instance;
         _logger = loggerFactory.CreateLogger<IamProviderBase>();
     }
 
@@ -31,44 +32,59 @@ public abstract class IamProviderBase : ICredentialsProvider
         _iamToken = await ReceiveIamToken();
     }
 
-    public string? GetAuthInfo()
+    public string GetAuthInfo()
     {
         var iamToken = _iamToken;
 
         if (iamToken is null)
         {
-            lock (_lock) {
-                if (_iamToken is null) {
-                    _logger.LogWarning("Blocking for initial IAM token acquirement" +
-                                       ", please use explicit Initialize async method.");
-
-                    _iamToken = ReceiveIamToken().Result;
+            lock (_lock)
+            {
+                if (_iamToken is not null)
+                {
+                    return _iamToken.Token;
                 }
+
+                _logger.LogWarning("Blocking for initial IAM token acquirement" +
+                                   ", please use explicit Initialize async method.");
+
+                _iamToken = ReceiveIamToken().Result;
 
                 return _iamToken.Token;
             }
         }
 
-        if (iamToken.IsExpired()) {
-            lock (_lock) {
-                if (_iamToken!.IsExpired()) {
-                    _logger.LogWarning("Blocking on expired IAM token.");
-
-                    _iamToken = ReceiveIamToken().Result;
+        if (iamToken.IsExpired())
+        {
+            lock (_lock)
+            {
+                if (!_iamToken!.IsExpired())
+                {
+                    return _iamToken.Token;
                 }
+
+                _logger.LogWarning("Blocking on expired IAM token.");
+
+                _iamToken = ReceiveIamToken().Result;
 
                 return _iamToken.Token;
             }
         }
 
-        if (iamToken.IsExpiring() && _refreshTask is null) {
-            lock (_lock) {
-                if (_iamToken!.IsExpiring() && _refreshTask is null) {
-                    _logger.LogInformation("Refreshing IAM token.");
-
-                    _refreshTask = Task.Run(RefreshIamToken);
-                }
+        if (!iamToken.IsExpiring() || _refreshTask is not null)
+        {
+            return _iamToken!.Token;
+        }
+        
+        lock (_lock)
+        {
+            if (!_iamToken!.IsExpiring() || _refreshTask is not null)
+            {
+                return _iamToken!.Token;
             }
+            _logger.LogInformation("Refreshing IAM token.");
+
+            _refreshTask = Task.Run(RefreshIamToken);
         }
 
         return _iamToken!.Token;
@@ -78,7 +94,8 @@ public abstract class IamProviderBase : ICredentialsProvider
     {
         var iamToken = await ReceiveIamToken();
 
-        lock (_lock) {
+        lock (_lock)
+        {
             _iamToken = iamToken;
             _refreshTask = null;
         }
@@ -86,8 +103,9 @@ public abstract class IamProviderBase : ICredentialsProvider
 
     protected async Task<IamTokenData> ReceiveIamToken()
     {
-        int retryAttempt = 0;
-        while (true) {
+        var retryAttempt = 0;
+        while (true)
+        {
             try
             {
                 _logger.LogTrace($"Attempting to receive IAM token, attempt: {retryAttempt}");
@@ -102,7 +120,8 @@ public abstract class IamProviderBase : ICredentialsProvider
             {
                 _logger.LogDebug($"Failed to fetch IAM token, {e}");
 
-                if (retryAttempt >= IamMaxRetries) {
+                if (retryAttempt >= IamMaxRetries)
+                {
                     throw;
                 }
 
@@ -123,14 +142,17 @@ public abstract class IamProviderBase : ICredentialsProvider
             Token = token;
             ExpiresAt = expiresAt;
 
-            if (expiresAt <= now) {
+            if (expiresAt <= now)
+            {
                 RefreshAt = expiresAt;
-            } else
+            }
+            else
             {
                 var refreshSeconds = new Random().Next((int)IamRefreshInterval.TotalSeconds);
                 RefreshAt = expiresAt - IamRefreshGap - TimeSpan.FromSeconds(refreshSeconds);
 
-                if (RefreshAt < now) {
+                if (RefreshAt < now)
+                {
                     RefreshAt = expiresAt;
                 }
             }
@@ -141,11 +163,13 @@ public abstract class IamProviderBase : ICredentialsProvider
 
         public DateTime RefreshAt { get; }
 
-        public bool IsExpired() {
+        public bool IsExpired()
+        {
             return DateTime.UtcNow >= ExpiresAt;
         }
 
-        public bool IsExpiring() {
+        public bool IsExpiring()
+        {
             return DateTime.UtcNow >= RefreshAt;
         }
     }
