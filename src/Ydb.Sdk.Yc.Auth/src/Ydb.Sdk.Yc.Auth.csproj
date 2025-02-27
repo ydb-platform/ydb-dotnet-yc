@@ -1,34 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
-    <AssemblyName>Ydb.Sdk.Yc.Auth</AssemblyName>
-    <RootNamespace>Ydb.Sdk.Yc</RootNamespace>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+        <AssemblyName>Ydb.Sdk.Yc.Auth</AssemblyName>
+        <RootNamespace>Ydb.Sdk.Yc</RootNamespace>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
 
-  <PropertyGroup>
-    <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/ydb-platform/ydb-dotnet-yc</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/ydb-platform/ydb-dotnet-yc</PackageProjectUrl>
-    <PackageId>Ydb.Sdk.Yc.Auth</PackageId>
-    <Description>Yandex.Cloud authentication libraries for YDB.</Description>
-    <Company>YANDEX LLC</Company>
-    <Authors>YDB</Authors>
-    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-  </PropertyGroup>
+    <PropertyGroup>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryUrl>https://github.com/ydb-platform/ydb-dotnet-yc</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/ydb-platform/ydb-dotnet-yc</PackageProjectUrl>
+        <PackageId>Ydb.Sdk.Yc.Auth</PackageId>
+        <Description>Yandex.Cloud authentication libraries for YDB.</Description>
+        <Company>YANDEX LLC</Company>
+        <Authors>YDB</Authors>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="../../../certs/yc_default.pem" LogicalName="yc_default.pem"/>
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="5.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0"/>
+        <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.5.0"/>
+        <PackageReference Include="Portable.BouncyCastle" Version="1.9.0"/>
+        <PackageReference Include="Ydb.Sdk" Version="0.14.0"/>
+        <PackageReference Include="Yandex.Cloud.SDK" Version="1.4.1"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="5.0.10" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
-    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.5.0" />
-    <PackageReference Include="Portable.BouncyCastle" Version="1.9.0" />
-    <PackageReference Include="Ydb.Sdk" Version="0.14.0" />
-    <PackageReference Include="Yandex.Cloud.SDK" Version="1.4.1" />
-  </ItemGroup>
-
+    <ItemGroup>
+        <EmbeddedResource Include="YandexAllCAs.pkcs"/>
+    </ItemGroup>
 </Project>
