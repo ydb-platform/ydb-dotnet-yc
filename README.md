@@ -56,13 +56,13 @@ var config = new DriverConfig(
 Library includes default Yandex Cloud server certificate, which is required for connectivity with dedicated YDB databases:
 
 ```c#
-var cert = Ydb.Sdk.Yc.YcCerts.GetDefaultServerCertificate();
+var certs = Ydb.Sdk.Yc.YcCerts.GetYcServerCertificates();
 
 var config = new DriverConfig(
     endpoint: endpoint, // Database endpoint, "grpcs://host:port"
     database: database, // Full database path
     credentials: credentials, // Credentials provider, see above
-    customServerCertificate: cert // Required for dedicated YDB dababases
+    customServerCertificates: cert // Required for dedicated YDB dababases
 );
 
 ```
