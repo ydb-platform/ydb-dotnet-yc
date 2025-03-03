@@ -62,7 +62,7 @@ var config = new DriverConfig(
     endpoint: endpoint, // Database endpoint, "grpcs://host:port"
     database: database, // Full database path
     credentials: credentials, // Credentials provider, see above
-    customServerCertificates: cert // Required for dedicated YDB dababases
+    customServerCertificates: certs // Required for dedicated YDB dababases
 );
 
 ```
