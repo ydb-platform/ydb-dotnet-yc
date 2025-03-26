@@ -23,10 +23,9 @@
         <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0"/>
         <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.5.0"/>
         <PackageReference Include="Portable.BouncyCastle" Version="1.9.0"/>
-        <PackageReference Include="Ydb.Sdk" Version="0.14.0"/>
+        <PackageReference Include="Ydb.Sdk" Version="0.16.0"/>
         <PackageReference Include="Yandex.Cloud.SDK" Version="1.4.1"/>
     </ItemGroup>
-
     <ItemGroup>
         <EmbeddedResource Include="YandexAllCAs.pkcs"/>
     </ItemGroup>

@@ -9,6 +9,6 @@ internal class EmptyYcCredentialsProvider : Yandex.Cloud.Credentials.ICredential
 {
     public string GetToken()
     {
-        return "";
+        return string.Empty;
     }
 }
