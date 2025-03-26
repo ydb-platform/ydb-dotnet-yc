@@ -70,9 +70,7 @@ internal class ServiceAccountAuthClient : IAuthClient
 
     public async Task<TokenResponse> FetchToken()
     {
-        var st = Stopwatch.StartNew();
         var sdk = new Yandex.Cloud.Sdk(new EmptyYcCredentialsProvider());
-        Console.WriteLine("Creating Yandex.Cloud.Sdk ms: " + st.ElapsedMilliseconds);
 
         _logger.LogInformation("Fetching IAM token by service account key.");
 
@@ -80,11 +78,8 @@ internal class ServiceAccountAuthClient : IAuthClient
         {
             Jwt = MakeJwt()
         };
-        Console.WriteLine("Creating CreateIamTokenRequest ms: " + st.ElapsedMilliseconds);
 
         var response = await sdk.Services.Iam.IamTokenService.CreateAsync(request);
-
-        _logger.LogInformation("Successfully fetched IAM token. ExpiredAt: {ExpiredAt}", response.ExpiresAt);
 
         return new TokenResponse(
             token: response.IamToken,
