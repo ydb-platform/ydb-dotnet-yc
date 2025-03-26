@@ -19,9 +19,6 @@ var saProvider = new ServiceAccountProvider(
     saFilePath: file, // Path to file with service account JSON info
     loggerFactory: loggerFactory);
 
-// Await initial IAM token.
-await saProvider.Initialize();
-
 var config = new DriverConfig(
     endpoint: endpoint, // Database endpoint, "grpcs://host:port"
     database: database, // Full database path
@@ -42,8 +39,6 @@ await driver.Initialize(); // Make sure to await driver initialization
 var metadataProvider = new MetadataProvider(loggerFactory: loggerFactory);
 
 // Await initial IAM token.
-await metadataProvider.Initialize();
-
 var config = new DriverConfig(
     endpoint: endpoint, // Database endpoint, "grpcs://host:port"
     database: database, // Full database path
@@ -64,6 +59,5 @@ var config = new DriverConfig(
     credentials: credentials, // Credentials provider, see above
     customServerCertificates: certs // Required for dedicated YDB dababases
 );
-
 ```
 

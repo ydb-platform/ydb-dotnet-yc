@@ -2,24 +2,33 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Ydb.Sdk.Auth;
 
 namespace Ydb.Sdk.Yc;
 
-public class MetadataProvider : IamProviderBase
+public class MetadataProvider : CachedCredentialsProvider
 {
-    private readonly ILogger _logger;
-
     public MetadataProvider(ILoggerFactory? loggerFactory = null)
-        : base(loggerFactory)
+        : base(new MetadataAuthClient(loggerFactory), loggerFactory)
+    {
+    }
+}
+
+internal class MetadataAuthClient : IAuthClient
+{
+    private readonly ILogger<MetadataAuthClient> _logger;
+
+    public MetadataAuthClient(ILoggerFactory? loggerFactory = null)
     {
         loggerFactory ??= NullLoggerFactory.Instance;
-        _logger = loggerFactory.CreateLogger<MetadataProvider>();
+        _logger = loggerFactory.CreateLogger<MetadataAuthClient>();
     }
 
-    protected override async Task<IamTokenData> FetchToken()
+    public async Task<TokenResponse> FetchToken()
     {
         _logger.LogInformation("Fetching IAM token by service account key.");
 
@@ -37,13 +46,14 @@ public class MetadataProvider : IamProviderBase
 
         var content = await response.Content.ReadAsStringAsync();
         var responseData = JsonSerializer.Deserialize<ResponseData>(content);
-        if (responseData == null) {
+        if (responseData == null)
+        {
             throw new InvalidOperationException("Failed to parse metadata service response.");
         }
 
-        var iamToken = new IamTokenData(
-            token: responseData.access_token,
-            expiresAt: DateTime.UtcNow + TimeSpan.FromSeconds(responseData.expires_in)
+        var iamToken = new TokenResponse(
+            token: responseData.AccessToken,
+            expiredAt: DateTime.UtcNow + TimeSpan.FromSeconds(responseData.ExpiresIn)
         );
 
         return iamToken;
@@ -51,8 +61,12 @@ public class MetadataProvider : IamProviderBase
 
     private class ResponseData
     {
-        public string access_token { get; set; } = "";
+        [JsonRequired]
+        [JsonPropertyName(name: "access_token")]
+        public string AccessToken { get; init; } = "";
 
-        public long expires_in { get; set; }
+        [JsonRequired]
+        [JsonPropertyName(name: "expires_in")]
+        public long ExpiresIn { get; init; }
     }
 }
