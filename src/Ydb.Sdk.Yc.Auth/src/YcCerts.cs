@@ -17,7 +17,7 @@ public static class YcCerts
 
         var collection = new X509Certificate2Collection();
         collection.Import(memoryStream.ToArray(), "yandex", X509KeyStorageFlags.Exportable);
-        
+
         return collection;
     }
 }
