@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Yandex.Cloud.Iam.V1;
 using Ydb.Sdk.Auth;
@@ -18,10 +17,12 @@ namespace Ydb.Sdk.Yc;
 public class ServiceAccountProvider : CachedCredentialsProvider
 {
     public ServiceAccountProvider(string saFilePath, ILoggerFactory? loggerFactory = null) :
-        base(
-            new ServiceAccountAuthClient(saFilePath, loggerFactory),
-            loggerFactory
-        )
+        base(new ServiceAccountAuthClient(saFilePath, loggerFactory), loggerFactory)
+    {
+    }
+
+    public ServiceAccountProvider(ServiceAccountKey serviceAccountKey, ILoggerFactory? loggerFactory = null)
+        : base(new ServiceAccountAuthClient(serviceAccountKey, loggerFactory))
     {
     }
 }
@@ -36,33 +37,28 @@ internal class ServiceAccountAuthClient : IAuthClient
     private readonly string _serviceAccountId;
     private readonly SigningCredentials _signingCredentials;
 
-    public ServiceAccountAuthClient(string saFilePath, ILoggerFactory? loggerFactory = null)
+    public ServiceAccountAuthClient(string saFilePath, ILoggerFactory? loggerFactory = null) :
+        this(JsonSerializer.Deserialize<ServiceAccountKey>(File.ReadAllText(saFilePath))
+             ?? throw new FormatException("Failed to parse service account file"), loggerFactory)
+    {
+    }
+
+    public ServiceAccountAuthClient(ServiceAccountKey serviceAccountKey, ILoggerFactory? loggerFactory = null)
     {
         loggerFactory ??= NullLoggerFactory.Instance;
         _logger = loggerFactory.CreateLogger<ServiceAccountAuthClient>();
-        _serviceAccountId = saFilePath;
 
-        var saFile = JsonSerializer.Deserialize<SaJsonInfo>(File.ReadAllText(saFilePath));
-        if (saFile == null)
+        _serviceAccountId = serviceAccountKey.ServiceAccountId;
+
+        using var reader = new StringReader(serviceAccountKey.PrivateKey);
+        if (new PemReader(reader).ReadObject() is not RsaPrivateCrtKeyParameters parameters)
         {
-            throw new FormatException("Failed to parse service account file");
+            throw new FormatException("Failed to parse service account key");
         }
 
-        _logger.LogDebug("Successfully parsed service account file");
-
-        _serviceAccountId = saFile.ServiceAccountId;
-
-        using (var reader = new StringReader(saFile.PrivateKey))
-        {
-            if (new PemReader(reader).ReadObject() is not RsaPrivateCrtKeyParameters parameters)
-            {
-                throw new FormatException("Failed to parse service account key");
-            }
-
-            var rsaParams = DotNetUtilities.ToRSAParameters(parameters);
-            _signingCredentials = new SigningCredentials(new RsaSecurityKey(rsaParams) { KeyId = saFile.Id },
-                SecurityAlgorithms.RsaSsaPssSha256);
-        }
+        var rsaParams = DotNetUtilities.ToRSAParameters(parameters);
+        _signingCredentials = new SigningCredentials(new RsaSecurityKey(rsaParams) { KeyId = serviceAccountKey.Id },
+            SecurityAlgorithms.RsaSsaPssSha256);
 
         _logger.LogInformation("Successfully parsed service account key");
     }
@@ -100,20 +96,5 @@ internal class ServiceAccountAuthClient : IAuthClient
                 SigningCredentials = _signingCredentials
             }
         );
-    }
-
-    private class SaJsonInfo
-    {
-        [JsonRequired]
-        [JsonPropertyName(name: "id")]
-        public string Id { get; init; } = "";
-
-        [JsonRequired]
-        [JsonPropertyName(name: "service_account_id")]
-        public string ServiceAccountId { get; init; } = "";
-
-        [JsonRequired]
-        [JsonPropertyName(name: "private_key")]
-        public string PrivateKey { get; init; } = "";
     }
 }
