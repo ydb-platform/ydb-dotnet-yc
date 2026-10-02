@@ -13,9 +13,11 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     env:
       VERSION: ${{ github.event.inputs.version }}
-      NUGET_TOKEN: ${{ secrets.YDB_PLATFORM_NUGET_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,4 +32,12 @@ jobs:
           cd src
           dotnet build --configuration Release 
           dotnet pack -c Release -o out /p:Version=$VERSION
-          dotnet nuget push out/Ydb.Sdk.Yc.Auth.$VERSION.nupkg --skip-duplicate --api-key $NUGET_TOKEN --source https://api.nuget.org/v3/index.json
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: robot-ydb-platform
+      - name: Publish
+        env:
+          NUGET_TOKEN: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push src/out/Ydb.Sdk.Yc.Auth.$VERSION.nupkg --skip-duplicate --api-key "$NUGET_TOKEN" --source https://api.nuget.org/v3/index.json
