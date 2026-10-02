@@ -11,13 +11,16 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     env:
       VERSION: ${{ github.event.inputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        run: |
+          git init
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
       - name: Setup dotnet
         uses: actions/setup-dotnet@v4
         with:
